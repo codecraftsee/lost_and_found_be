@@ -7,6 +7,11 @@ class AppException(HTTPException):
         super().__init__(status_code=status_code, detail=detail)
 
 
+class RateLimitExceeded(AppException):
+    def __init__(self) -> None:
+        super().__init__(status_code=429, detail="Too many requests")
+
+
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,

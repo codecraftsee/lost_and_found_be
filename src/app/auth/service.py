@@ -1,10 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import repository
-from app.auth.exceptions import InvalidCredentials, UserAlreadyExists
+import uuid
+
+from app.auth.exceptions import InvalidCredentials, InvalidToken, UserAlreadyExists
 from app.auth.models import User
 from app.auth.schemas import TokenPair, UserCreate
-from app.auth.security import create_access_token, create_refresh_token, hash_password, verify_password
+from app.auth.security import create_access_token, create_refresh_token, decode_token, hash_password, verify_password
 
 
 async def register_user(db: AsyncSession, data: UserCreate) -> User:
@@ -24,6 +26,27 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> Toke
     user = await repository.get_user_by_email(db, email)
     if not user or not verify_password(password, user.hashed_password):
         raise InvalidCredentials()
+
+    token_data = {"sub": str(user.id)}
+    return TokenPair(
+        access_token=create_access_token(token_data),
+        refresh_token=create_refresh_token(token_data),
+    )
+
+
+async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenPair:
+    payload = decode_token(refresh_token)
+    if payload is None or payload.get("type") != "refresh":
+        raise InvalidToken()
+
+    try:
+        user_id = uuid.UUID(payload["sub"])
+    except (KeyError, ValueError):
+        raise InvalidToken()
+
+    user = await repository.get_user_by_id(db, user_id)
+    if user is None or not user.is_active:
+        raise InvalidToken()
 
     token_data = {"sub": str(user.id)}
     return TokenPair(

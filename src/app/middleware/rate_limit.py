@@ -1,7 +1,9 @@
 import time
 from collections import defaultdict
 
-from fastapi import HTTPException, Request
+from fastapi import Request
+
+from app.exceptions import RateLimitExceeded
 
 
 class RateLimiter:
@@ -20,7 +22,7 @@ class RateLimiter:
         self._clean_old_requests(client_ip, now)
 
         if len(self.requests[client_ip]) >= self.max_requests:
-            raise HTTPException(status_code=429, detail="Too many requests")
+            raise RateLimitExceeded()
 
         self.requests[client_ip].append(now)
 
