@@ -123,21 +123,36 @@ Match statuses:
 - **Framework:** FastAPI with async/await
 - **Database:** PostgreSQL via SQLAlchemy async + asyncpg
 - **Migrations:** Alembic (async-compatible)
-- **Auth:** JWT (python-jose) + bcrypt (passlib)
+- **Auth:** JWT (python-jose) + bcrypt (passlib, pinned `bcrypt<4.0.0` for compatibility)
 - **Validation:** Pydantic v2 + pydantic-settings
 - **Server:** Uvicorn
 - **Tests:** pytest + pytest-asyncio + httpx
 
 ### Project Structure
 Domain-driven modules under `src/app/`:
-- `auth/` — registration, login, JWT, password management
+- `auth/` — registration, login, JWT, token refresh, password management
 - `items/` — CRUD for lost and found items (single table, type discriminator)
 - `search/` — browse & filter with pagination
 - `matching/` — automatic matching engine, match suggestions
 - `claims/` — claim submission, verification, fraud prevention
 - `notifications/` — in-app notifications
+- `utils/` — shared utility functions (e.g. `validators.py` for password strength)
+- `middleware/` — CORS (`cors.py`), IP-based rate limiting (`rate_limit.py`)
 
 Each domain follows: `router.py` → `service.py` → `repository.py` + `models.py` + `schemas.py`
+
+### Auth Endpoints
+| Method | Path | Auth | Rate Limited |
+|--------|------|------|--------------|
+| POST | `/api/v1/auth/register` | No | Yes (5/min) |
+| POST | `/api/v1/auth/login` | No | Yes (5/min) |
+| POST | `/api/v1/auth/refresh` | No (token is credential) | No |
+| GET | `/api/v1/auth/me` | Yes | No |
+| PUT | `/api/v1/auth/change-password` | Yes | No |
+
+**Token strategy:** Access token (30 min, `type: "access"`) + Refresh token (7 days, `type: "refresh"`), both HS256 JWTs. Refresh rotates both tokens on each call.
+
+**Password rules:** Minimum 8 characters, at least 1 uppercase letter, at least 1 digit. Enforced via `validate_password_strength()` in `utils/validators.py`. Rules are constants in `constants.py`.
 
 ### Key Commands
 ```bash
